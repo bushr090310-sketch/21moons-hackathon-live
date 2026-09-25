@@ -173,7 +173,7 @@ export async function getTeamState(teamId: string) {
       order by l.created_at desc, l.id desc limit 50`;
 
     const row = pub.leaderboard.find((r) => r.teamId === teamId);
-    const byChallenge = new Map<string, typeof subs>();
+    const byChallenge = new Map<string, (typeof subs)[number][]>();
     for (const s of subs) {
       const list = byChallenge.get(s.challenge_id) ?? [];
       list.push(s);

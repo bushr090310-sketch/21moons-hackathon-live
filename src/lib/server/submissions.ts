@@ -134,7 +134,10 @@ export async function submitApplication(teamId: string, input: SubmitInput) {
       if (!c) throw notFound("Challenge not found");
       const type = c.challenge_type as ChallengeType;
       const winner = type === "FIRST_GLOBAL" ? await firstGlobalWinner(tx, c.id) : null;
-      const state = challengeState({ ...c, has_winner: !!winner }, nowMs);
+      const state = challengeState({
+        status: c.status, challenge_type: type, reveal_at: c.reveal_at, expires_at: c.expires_at,
+        finalized_at: c.finalized_at, has_winner: !!winner,
+      }, nowMs);
 
       if (state === "draft" || state === "scheduled" || state === "archived") throw notFound("Challenge not found");
       if (!c.accepts_submissions) throw conflict("This challenge doesn't take applications — the organizers decide it");

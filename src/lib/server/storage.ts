@@ -43,11 +43,27 @@ export function sniffMime(head: Uint8Array): string | null {
 
 export interface UploadTarget { url: string; method: "PUT"; headers: Record<string, string> }
 
+let bucketChecked = false;
+/** Safety net if the migration couldn't create the bucket: create it PRIVATE via the Storage API. */
+async function ensureBucket(s: SupabaseClient) {
+  if (bucketChecked) return;
+  const { data } = await s.storage.getBucket(EVIDENCE_BUCKET);
+  if (!data) {
+    await s.storage.createBucket(EVIDENCE_BUCKET, {
+      public: false, fileSizeLimit: MAX_FILE_BYTES, allowedMimeTypes: Object.keys(ALLOWED_MIME),
+    });
+  } else if (data.public) {
+    await s.storage.updateBucket(EVIDENCE_BUCKET, { public: false, fileSizeLimit: MAX_FILE_BYTES, allowedMimeTypes: Object.keys(ALLOWED_MIME) });
+  }
+  bucketChecked = true;
+}
+
 export async function createUploadTarget(path: string, mime: string, fileId: string): Promise<UploadTarget> {
   const s = supa();
   if (!s) {
     return { url: `/api/team/uploads/${fileId}`, method: "PUT", headers: { "content-type": mime } };
   }
+  await ensureBucket(s);
   const { data, error } = await s.storage.from(EVIDENCE_BUCKET).createSignedUploadUrl(path);
   if (error || !data) throw new Error("Could not create upload URL: " + (error?.message ?? "unknown"));
   return { url: data.signedUrl, method: "PUT", headers: { "content-type": mime, "x-upsert": "false" } };

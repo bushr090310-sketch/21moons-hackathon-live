@@ -1,6 +1,5 @@
 import { execSync } from "node:child_process";
 import postgres from "postgres";
-// @ts-expect-error — plain JS module
 import { migrate } from "../scripts/migrate.mjs";
 
 export default async function setup() {
