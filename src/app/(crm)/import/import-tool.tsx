@@ -42,8 +42,8 @@ export function ImportTool({ hackathons }: { hackathons: Hackathon[] }) {
     // Which emails already exist in the CRM (staff can read people).
     const emails = [...new Set(d.flatMap((r) => r.map((c) => c.trim().toLowerCase())).filter((c) => c.includes("@")))];
     const found = new Set<string>();
-    for (let i = 0; i < emails.length; i += 300) {
-      const { data: ppl } = await supabase().from("people").select("email").in("email", emails.slice(i, i + 300));
+    for (let i = 0; i < emails.length; i += 100) {
+      const { data: ppl } = await supabase().from("people").select("email").in("email", emails.slice(i, i + 100));
       ppl?.forEach((p: { email: string }) => found.add(p.email));
     }
     setExisting(found);
