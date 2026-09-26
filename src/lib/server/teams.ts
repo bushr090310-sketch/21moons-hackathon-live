@@ -1,5 +1,5 @@
 import { db, withTx, type Tx } from "./db";
-import { badRequest, conflict, isUniqueViolation, notFound } from "./errors";
+import { AppError, badRequest, conflict, isUniqueViolation, notFound } from "./errors";
 import { audit } from "./audit";
 import { generateTeamCode, generateVoteCode, hashTeamCode, hashVoteCode, verifyTeamCode } from "./crypto";
 import { assertNotThrottled, recordFailure } from "./ratelimit";
@@ -53,26 +53,79 @@ export interface TeamCard {
 }
 
 export async function createTeam(input: { name: string; description?: string | null; participants: string[] | string; isDemo?: boolean }): Promise<TeamCard> {
+  const prepared = prepareTeam(input);
+  try {
+    return await withTx(async (tx) => {
+      const card = await insertTeam(tx, { ...prepared, isDemo: !!input.isDemo, selfRegistered: false });
+      await audit(tx, "team.created", { teamId: card.team.id, name: prepared.name, participants: prepared.names.length, demo: !!input.isDemo });
+      return card;
+    });
+  } catch (e) {
+    throw mapDuplicateName(e, prepared.name);
+  }
+}
+
+function prepareTeam(input: { name: string; description?: string | null; participants: string[] | string }) {
   const name = input.name.replace(/\s+/g, " ").trim();
   if (!name || name.length > 60) throw badRequest("Team name is required (max 60 characters)");
-  const names = cleanNames(input.participants);
+  return { name, description: input.description?.trim() || null, names: cleanNames(input.participants) };
+}
+
+function mapDuplicateName(e: unknown, name: string): unknown {
+  if (isUniqueViolation(e, "teams_active_name_unique")) return conflict(`A team called "${name}" already exists`);
+  return e;
+}
+
+async function insertTeam(tx: Tx, p: { name: string; description: string | null; names: string[]; isDemo: boolean; selfRegistered: boolean }): Promise<TeamCard & { sessionVersion: number }> {
+  const [dupe] = await tx`select 1 from teams where lower(name) = lower(${p.name}) and active`;
+  if (dupe) throw conflict(`A team called "${p.name}" already exists`);
   const accessCode = generateTeamCode();
-  return withTx(async (tx) => {
-    const [dupe] = await tx`select 1 from teams where lower(name) = lower(${name}) and active`;
-    if (dupe) throw conflict(`A team called "${name}" already exists`);
-    const slug = await uniqueTeamSlug(tx, name);
-    const [team] = await tx`
-      insert into teams (name, slug, description, is_demo) values (${name}, ${slug}, ${input.description?.trim() || null}, ${!!input.isDemo})
-      returning id, name`;
-    await tx`insert into team_secrets (team_id, access_code_hash) values (${team.id}, ${hashTeamCode(accessCode)})`;
-    const participants = [];
-    for (const n of names) participants.push(await insertParticipant(tx, team.id, n));
-    await audit(tx, "team.created", { teamId: team.id, name, participants: names.length, demo: !!input.isDemo });
-    return { team: { id: team.id, name: team.name }, accessCode, participants };
-  });
+  const slug = await uniqueTeamSlug(tx, p.name);
+  // The unique index teams_active_name_unique is the final arbiter under concurrency.
+  const [team] = await tx`
+    insert into teams (name, slug, description, is_demo, self_registered)
+    values (${p.name}, ${slug}, ${p.description}, ${p.isDemo}, ${p.selfRegistered})
+    returning id, name`;
+  const [sec] = await tx`insert into team_secrets (team_id, access_code_hash) values (${team.id}, ${hashTeamCode(accessCode)}) returning session_version`;
+  const participants = [];
+  for (const n of p.names) participants.push(await insertParticipant(tx, team.id, n));
+  return { team: { id: team.id, name: team.name }, accessCode, participants, sessionVersion: sec.session_version as number };
+}
+
+/**
+ * Self-service registration from /team. Same hashing as admin-created teams; the
+ * caller authenticates the new team with a signed session cookie.
+ */
+export async function registerTeam(input: { name: string; participants: string[] | string }, ip: string) {
+  const prepared = prepareTeam({ name: input.name, participants: input.participants });
+  if (prepared.names.length < 2) throw badRequest("Add at least 2 participants");
+  await assertNotThrottled("team-register", ip, 25, 10);
+  try {
+    const card = await withTx(async (tx) => {
+      // FOR SHARE: a concurrent "close registration" waits for / blocks this.
+      const [s] = await tx`select team_registration_open from event_settings where id = 1 for share`;
+      if (!s?.team_registration_open) throw new AppError(403, "Team registration is closed. Ask an organizer to add your team.");
+      const c = await insertTeam(tx, { ...prepared, isDemo: false, selfRegistered: true });
+      await audit(tx, "team.self_registered", { teamId: c.team.id, name: prepared.name, participants: prepared.names.length, ip });
+      return c;
+    });
+    await recordFailure("team-register", ip); // counts registrations per IP for throttling
+    return card;
+  } catch (e) {
+    throw mapDuplicateName(e, prepared.name);
+  }
 }
 
 export async function updateTeam(id: string, input: { name?: string; description?: string | null; active?: boolean }) {
+  try {
+    return await updateTeamTx(id, input);
+  } catch (e) {
+    if (isUniqueViolation(e, "teams_active_name_unique")) throw conflict("Another active team already uses that name. Rename one of them first.");
+    throw e;
+  }
+}
+
+async function updateTeamTx(id: string, input: { name?: string; description?: string | null; active?: boolean }) {
   return withTx(async (tx) => {
     const [t] = await tx`select * from teams where id = ${id} for update`;
     if (!t) throw notFound("Team not found");

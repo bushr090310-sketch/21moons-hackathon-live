@@ -10,7 +10,7 @@ export async function resetDb() {
             admin_audit_log, auth_attempts, local_evidence_objects restart identity cascade`;
   await sql`delete from challenges where slug like 't-%' or slug like 'test-%'`;
   await sql`update event_settings set leaderboard_frozen = false, frozen_at = null, revealed_at = null,
-            voting_state = 'not_open', submissions_open = true, voting_results_public = false where id = 1`;
+            voting_state = 'not_open', submissions_open = true, team_registration_open = true, voting_results_public = false where id = 1`;
 }
 
 let n = 0;

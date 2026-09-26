@@ -31,6 +31,7 @@ export async function unfreezeLeaderboard() {
 
 export interface SettingsPatch {
   submissionsOpen?: boolean;
+  teamRegistrationOpen?: boolean;
   votingResultsPublic?: boolean;
   showFirstGlobalWinner?: boolean;
   sponsors?: string[];
@@ -48,6 +49,7 @@ export async function updateSettings(p: SettingsPatch) {
     await tx`
       update event_settings set
         submissions_open = coalesce(${p.submissionsOpen ?? null}::boolean, submissions_open),
+        team_registration_open = coalesce(${p.teamRegistrationOpen ?? null}::boolean, team_registration_open),
         voting_results_public = coalesce(${p.votingResultsPublic ?? null}::boolean, voting_results_public),
         show_first_global_winner = coalesce(${p.showFirstGlobalWinner ?? null}::boolean, show_first_global_winner),
         sponsors = coalesce(${p.sponsors ? tx.json(p.sponsors) : null}::jsonb, sponsors),
@@ -55,6 +57,9 @@ export async function updateSettings(p: SettingsPatch) {
         event_name = coalesce(${p.eventName?.trim() || null}, event_name),
         updated_at = now()
       where id = 1`;
+    if (p.teamRegistrationOpen !== undefined) {
+      await audit(tx, p.teamRegistrationOpen ? "team_registration.opened" : "team_registration.closed", {});
+    }
     await audit(tx, "settings.updated", p as Record<string, unknown>);
   });
 }

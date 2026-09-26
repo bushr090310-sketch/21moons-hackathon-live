@@ -76,6 +76,7 @@ export function TeamsTab(ctx: AdminCtx) {
                     <h3 className="text-lg font-semibold">{t.name}</h3>
                     {!t.active && <Badge>Archived</Badge>}
                     {t.isDemo && <Badge tone="warn">Demo</Badge>}
+                    {t.selfRegistered && <Badge tone="cyan">Self-registered</Badge>}
                   </div>
                   {t.description && <p className="text-sm text-mist">{t.description}</p>}
                 </div>

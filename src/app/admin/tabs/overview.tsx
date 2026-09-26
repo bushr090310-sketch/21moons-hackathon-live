@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Flag, Inbox, Plus, Snowflake, Trophy, Vote, Zap } from "lucide-react";
+import { Download, Eye, Flag, Inbox, Plus, Snowflake, Trophy, UserPlus, Vote, Zap } from "lucide-react";
 import { useState } from "react";
 import { fmtCountdown, fmtTime } from "@/lib/shared/time";
 import type { LeaderboardRow } from "@/lib/shared/types";
@@ -36,9 +36,21 @@ export function Overview({ s, now, act, confirm, go }: AdminCtx) {
     if (r.ok) await act({ action: "voting.set", state }, state === "open" ? "Voting is open" : "Voting closed");
   };
 
+  const registration = async (open: boolean) => {
+    const r = await confirm({
+      title: open ? "Open team registration?" : "Close team registration?",
+      body: open
+        ? "Anyone at /team can create a new team (min. 2 participants) and gets their codes immediately."
+        : "No new teams can be created at /team. Existing teams can still log in. You can still add teams in the Teams tab.",
+      confirmLabel: open ? "Open registration" : "Close registration",
+      danger: !open,
+    });
+    if (r.ok) await act({ action: "settings.update", teamRegistrationOpen: open }, open ? "Team registration is open" : "Team registration closed");
+  };
+
   return (
     <div className="flex flex-col gap-6">
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-9">
         <Stat label="Event time" value={fmtTime(new Date(now))} sub="Europe/Stockholm" />
         <Stat label="Teams" value={s.stats.teams} onClick={() => go("teams")} />
         <Stat label="Pending" value={s.stats.pending} tone={s.stats.pending ? "warn" : undefined} sub={s.stats.pending ? "needs review" : "all clear"} onClick={() => go("inbox")} />
@@ -52,6 +64,7 @@ export function Overview({ s, now, act, confirm, go }: AdminCtx) {
         />
         <Stat label="Public board" value={frozen ? "FROZEN" : "LIVE"} tone={frozen ? "cyan" : "ok"} sub={frozen ? `since ${fmtTime(s.settings.frozenAt)}` : "showing real scores"} />
         <Stat label="Voting" value={s.settings.votingState === "open" ? "OPEN" : s.settings.votingState === "closed" ? "CLOSED" : "NOT OPEN"} tone={s.settings.votingState === "open" ? "ok" : undefined} sub={`${s.voting.voted}/${s.voting.voters} voted`} onClick={() => go("voting")} />
+        <Stat label="Team registration" value={s.settings.teamRegistrationOpen ? "OPEN" : "CLOSED"} tone={s.settings.teamRegistrationOpen ? "ok" : undefined} sub="self-service at /team" onClick={() => registration(!s.settings.teamRegistrationOpen)} />
         <Stat label="Submissions" value={s.settings.submissionsOpen ? "OPEN" : "PAUSED"} tone={s.settings.submissionsOpen ? "ok" : "warn"} onClick={() => go("settings")} />
       </section>
 
@@ -59,6 +72,11 @@ export function Overview({ s, now, act, confirm, go }: AdminCtx) {
         <SectionTitle>Quick actions</SectionTitle>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <Button onClick={() => go("teams", { focus: "new" })}><Plus className="size-4" /> Add team</Button>
+          {s.settings.teamRegistrationOpen ? (
+            <Button variant="danger" onClick={() => registration(false)}><UserPlus className="size-4" /> Close team registration</Button>
+          ) : (
+            <Button onClick={() => registration(true)}><UserPlus className="size-4" /> Open team registration</Button>
+          )}
           <Button onClick={() => go("challenges", { focus: "new" })}><Plus className="size-4" /> New challenge</Button>
           <Button variant={s.stats.pending ? "primary" : "secondary"} onClick={() => go("inbox")}><Inbox className="size-4" /> Review applications{s.stats.pending ? ` (${s.stats.pending})` : ""}</Button>
           <Button onClick={() => setDropOpen(true)}><Zap className="size-4" /> Drop challenge</Button>

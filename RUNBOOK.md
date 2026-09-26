@@ -17,7 +17,11 @@ All times are Europe/Stockholm.
 
 1. **Open `/admin`** on your phone and sign in with the organizer password.
    If demo teams are still there: *Teams → Remove demo teams*.
-2. **Add teams:** *Control → + Add team*. Type the team name.
+2. **Teams register themselves** at `/team` → *Create new team* (team name + at least 2 names).
+   They get their team login code and one voting code per person on screen (Copy all) and are
+   signed in right away. Toggle it with *Control → Open / Close team registration*. When it is
+   closed, existing teams can still log in.
+   **Fallback / manual:** *Control → + Add team*. Type the team name.
 3. **Add participant names**, one per line, then **Save team & generate codes**.
 4. **Give teams their codes.** The card that pops up shows the TEAM LOGIN CODE and
    one VOTING CODE per person. Codes are shown **only once**: press **Print** or **Copy all**

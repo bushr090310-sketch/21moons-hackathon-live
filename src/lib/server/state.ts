@@ -23,6 +23,7 @@ function toPublicEvent(s: Record<string, unknown>): PublicEvent {
     revealedAt: iso(s.revealed_at),
     votingState: s.voting_state as VotingState,
     submissionsOpen: !!s.submissions_open,
+    teamRegistrationOpen: s.team_registration_open !== false,
     sponsors: (s.sponsors as string[]) ?? [],
     announcement: (s.announcement as string) ?? null,
   };
@@ -253,7 +254,7 @@ export async function getAdminState() {
       loadWinners(tx),
     ]);
     const teams = await tx`
-      select t.id, t.name, t.slug, t.description, t.active, t.is_demo, t.score_cached, t.created_at,
+      select t.id, t.name, t.slug, t.description, t.active, t.is_demo, t.self_registered, t.score_cached, t.created_at,
              coalesce(json_agg(json_build_object('id', p.id, 'name', p.name, 'voted', exists(select 1 from votes v where v.participant_id = p.id))
                       order by p.created_at) filter (where p.id is not null), '[]') as participants
       from teams t left join participants p on p.team_id = t.id
@@ -328,7 +329,7 @@ export async function getAdminState() {
       activity,
       teams: teams.map((t) => ({
         id: t.id as string, name: t.name as string, slug: t.slug as string, description: (t.description as string) ?? null,
-        active: !!t.active, isDemo: !!t.is_demo, score: t.score_cached as number,
+        active: !!t.active, isDemo: !!t.is_demo, selfRegistered: !!t.self_registered, score: t.score_cached as number,
         participants: t.participants as { id: string; name: string; voted: boolean }[],
       })),
       challenges: challengeList,

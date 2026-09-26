@@ -77,6 +77,7 @@ export interface PublicEvent {
   revealedAt: string | null;
   votingState: VotingState;
   submissionsOpen: boolean;
+  teamRegistrationOpen: boolean;
   sponsors: string[];
   announcement: string | null;
 }

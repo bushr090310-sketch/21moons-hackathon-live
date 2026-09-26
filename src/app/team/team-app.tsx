@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Clock, KeyRound, LogOut, Users, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Copy, KeyRound, Lock, LogOut, UserPlus, Users, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TeamState } from "@/lib/server/state";
 import { fmtTime } from "@/lib/shared/time";
@@ -9,28 +9,74 @@ import { DropOverlay, FrozenBanner, NextDrop, ScoreNumber, useDropQueue } from "
 import { ChallengeCard } from "@/components/challenge-card";
 import { useLiveData, useNow } from "@/components/live";
 import { useToast } from "@/components/toast";
-import { Badge, Button, Empty, Input, Label, Select, Spinner, api, cx } from "@/components/ui";
+import { Badge, Button, Empty, Input, Label, Select, Spinner, Textarea, api, cx } from "@/components/ui";
 import { ApplyModal } from "./apply-modal";
 
 type Challenge = TeamState["challenges"][number];
 
+interface CreatedTeam {
+  team: { id: string; name: string };
+  accessCode: string;
+  participants: { name: string; voteCode: string }[];
+}
+
 export function TeamApp() {
   const live = useLiveData<TeamState>("/api/team/me", { channel: "public", interval: 8000 });
+  // One-time codes live only in memory; they are never persisted in the browser.
+  const [created, setCreated] = useState<CreatedTeam | null>(null);
+  if (created) return <CreatedScreen created={created} onContinue={() => { setCreated(null); void live.refresh(); }} />;
   if (!live.data && live.status === null) return (<><SiteHeader /><Spinner /></>);
-  if (!live.data && live.status === 401) return <TeamLogin onLoggedIn={live.refresh} />;
+  if (!live.data && live.status === 401) return <TeamEntry onLoggedIn={live.refresh} onCreated={(c) => { setCreated(c); void live.refresh(); }} />;
   if (!live.data) return (<><SiteHeader /><div className="mx-auto max-w-lg p-6"><Empty title="Couldn't load your dashboard">{live.error}</Empty></div></>);
   return <Dashboard state={live.data} conn={live.conn} offset={live.serverOffset} refresh={live.refresh} />;
 }
 
-function TeamLogin({ onLoggedIn }: { onLoggedIn: () => Promise<void> }) {
+function TeamEntry({ onLoggedIn, onCreated }: { onLoggedIn: () => Promise<void>; onCreated: (c: CreatedTeam) => void }) {
+  const [mode, setMode] = useState<"join" | "create">("join");
   const [teams, setTeams] = useState<{ id: string; name: string }[] | null>(null);
+  const [registrationOpen, setRegistrationOpen] = useState<boolean | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  useEffect(() => {
+    api<{ teams: { id: string; name: string }[]; registrationOpen: boolean }>("/api/public/teams", undefined, "GET")
+      .then((r) => { setTeams(r.teams); setRegistrationOpen(r.registrationOpen); })
+      .catch((e) => setLoadErr(e.message));
+  }, []);
+  return (
+    <>
+      <SiteHeader />
+      <main className="mx-auto flex max-w-md flex-col px-4 pb-16 pt-10 sm:pt-16">
+        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-violet">Team access</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-gradient">{mode === "join" ? "Join your team" : "Create a new team"}</h1>
+        <div className="mt-6 flex rounded-lg border border-line bg-white/[0.02] p-1 text-sm" role="tablist">
+          <button role="tab" aria-selected={mode === "join"} onClick={() => setMode("join")} className={cx("flex-1 rounded-md px-3 py-2 transition", mode === "join" ? "bg-white/[0.08] text-silver" : "text-mist")}>
+            <KeyRound className="mr-1.5 inline size-4" /> Join existing team
+          </button>
+          <button role="tab" aria-selected={mode === "create"} onClick={() => setMode("create")} className={cx("flex-1 rounded-md px-3 py-2 transition", mode === "create" ? "bg-white/[0.08] text-silver" : "text-mist")}>
+            <UserPlus className="mr-1.5 inline size-4" /> Create new team
+          </button>
+        </div>
+        {loadErr && <p className="mt-4 rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-sm text-bad">{loadErr}</p>}
+        {mode === "join" ? (
+          <JoinForm teams={teams} onLoggedIn={onLoggedIn} onCreateInstead={() => setMode("create")} />
+        ) : registrationOpen === false ? (
+          <div className="panel mt-4 p-5 text-center">
+            <Lock className="mx-auto size-7 text-mist" />
+            <p className="mt-3 font-semibold text-silver">Team registration is closed</p>
+            <p className="mt-1 text-sm text-mist">New teams can&apos;t be created right now. If your team already exists, use <button className="text-violet hover:underline" onClick={() => setMode("join")}>Join existing team</button>. Otherwise ask an organizer.</p>
+          </div>
+        ) : (
+          <CreateForm onCreated={onCreated} onClosed={() => setRegistrationOpen(false)} />
+        )}
+      </main>
+    </>
+  );
+}
+
+function JoinForm({ teams, onLoggedIn, onCreateInstead }: { teams: { id: string; name: string }[] | null; onLoggedIn: () => Promise<void>; onCreateInstead: () => void }) {
   const [teamId, setTeamId] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    api<{ teams: { id: string; name: string }[] }>("/api/public/teams", undefined, "GET").then((r) => setTeams(r.teams)).catch((e) => setErr(e.message));
-  }, []);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -46,29 +92,121 @@ function TeamLogin({ onLoggedIn }: { onLoggedIn: () => Promise<void> }) {
     }
   };
   return (
+    <form onSubmit={submit} className="panel mt-4 flex flex-col gap-4 p-5">
+      <p className="text-sm text-mist">Everyone on the team shares the same team code.</p>
+      <label>
+        <Label>Your team</Label>
+        <Select value={teamId} onChange={(e) => setTeamId(e.target.value)} required>
+          <option value="">{teams === null ? "Loading teams…" : teams.length ? "Choose your team" : "No teams yet — create one"}</option>
+          {teams?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </Select>
+      </label>
+      <label>
+        <Label>Team code</Label>
+        <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="XXXX-XXXX-XXXX" autoCapitalize="characters" autoComplete="one-time-code" spellCheck={false} className="font-mono tracking-widest" required />
+      </label>
+      {err && <p className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-sm text-bad">{err}</p>}
+      <Button type="submit" variant="primary" size="lg" loading={busy} disabled={!teamId || code.length < 4}>
+        <KeyRound className="size-4" /> Enter
+      </Button>
+      <p className="text-center text-xs text-dim">Team not listed? <button type="button" className="text-violet hover:underline" onClick={onCreateInstead}>Create a new team</button></p>
+    </form>
+  );
+}
+
+function CreateForm({ onCreated, onClosed }: { onCreated: (c: CreatedTeam) => void; onClosed: () => void }) {
+  const [name, setName] = useState("");
+  const [people, setPeople] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const names = people.split(/\n|,/).map((x) => x.trim()).filter(Boolean);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    setErr(null);
+    if (names.length < 2) return setErr("Add at least 2 participants — one name per line.");
+    setBusy(true);
+    try {
+      const res = await fetch("/api/team/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, participants: names }),
+        credentials: "same-origin",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 403) onClosed();
+        throw new Error(data?.error ?? `Request failed (${res.status})`);
+      }
+      onCreated(data as CreatedTeam);
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={submit} className="panel mt-4 flex flex-col gap-4 p-5">
+      <p className="text-sm text-mist">Register your team yourself. You&apos;ll get a shared team login code and a personal voting code for each member.</p>
+      <label>
+        <Label>Team name *</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Lunar Labs" required />
+      </label>
+      <label>
+        <Label hint={`${names.length} ${names.length === 1 ? "person" : "people"} · min 2`}>Participant names — one per line *</Label>
+        <Textarea rows={5} value={people} onChange={(e) => setPeople(e.target.value)} placeholder={"John Doe\nSara Example\nAdam Test"} />
+      </label>
+      {err && <p className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-sm text-bad">{err}</p>}
+      <Button type="submit" variant="primary" size="lg" loading={busy} disabled={!name.trim() || names.length < 2}>
+        <UserPlus className="size-4" /> Create team
+      </Button>
+    </form>
+  );
+}
+
+function CreatedScreen({ created: c, onContinue }: { created: CreatedTeam; onContinue: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const text = [
+    `TEAM: ${c.team.name}`,
+    `TEAM LOGIN CODE: ${c.accessCode}`,
+    "",
+    "PEOPLE'S CHOICE VOTING CODES:",
+    ...c.participants.map((p) => `${p.name} — ${p.voteCode}`),
+  ].join("\n");
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* clipboard unavailable — codes remain visible on screen */ }
+  };
+  return (
     <>
       <SiteHeader />
-      <main className="mx-auto flex max-w-md flex-col px-4 pt-10 sm:pt-16">
-        <p className="text-xs font-semibold uppercase tracking-[0.35em] text-violet">Team access</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-gradient">Sign in to your team</h1>
-        <p className="mt-2 text-sm text-mist">Use the team code from your organizer card. Everyone on the team shares the same code.</p>
-        <form onSubmit={submit} className="panel mt-6 flex flex-col gap-4 p-5">
-          <label>
-            <Label>Your team</Label>
-            <Select value={teamId} onChange={(e) => setTeamId(e.target.value)} required>
-              <option value="">{teams === null ? "Loading teams…" : teams.length ? "Choose your team" : "No teams yet — ask an organizer"}</option>
-              {teams?.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </Select>
-          </label>
-          <label>
-            <Label>Team code</Label>
-            <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="XXXX-XXXX-XXXX" autoCapitalize="characters" autoComplete="one-time-code" spellCheck={false} className="font-mono tracking-widest" required />
-          </label>
-          {err && <p className="rounded-lg border border-bad/30 bg-bad/10 px-3 py-2 text-sm text-bad">{err}</p>}
-          <Button type="submit" variant="primary" size="lg" loading={busy} disabled={!teamId || code.length < 4}>
-            <KeyRound className="size-4" /> Enter
-          </Button>
-        </form>
+      <main className="mx-auto flex max-w-md flex-col px-4 pb-16 pt-10">
+        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.35em] text-ok"><CheckCircle2 className="size-4" /> Team created</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-gradient">{c.team.name}</h1>
+        <p className="mt-3 rounded-lg border border-warn/30 bg-warn/10 px-3 py-2 text-sm text-warn">
+          Save these codes now — they are shown <b>only once</b>. Share the team code with your teammates and give each person their own voting code.
+        </p>
+        <section className="panel mt-4 p-5">
+          <p className="text-[11px] uppercase tracking-[0.25em] text-dim">Team login code</p>
+          <p className="mt-1 font-mono text-3xl font-semibold tracking-[0.12em] text-cyan">{c.accessCode}</p>
+          <p className="mt-5 text-[11px] uppercase tracking-[0.25em] text-dim">People&apos;s Choice voting codes</p>
+          <ul className="mt-1 divide-y divide-line">
+            {c.participants.map((p) => (
+              <li key={p.name + p.voteCode} className="flex items-center gap-3 py-2">
+                <span className="min-w-0 flex-1 truncate text-silver">{p.name}</span>
+                <span className="font-mono font-semibold tracking-[0.15em]">{p.voteCode}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Button size="lg" onClick={copyAll}>{copied ? <><CheckCircle2 className="size-4 text-ok" /> Copied</> : <><Copy className="size-4" /> Copy all</>}</Button>
+          <Button size="lg" variant="primary" onClick={onContinue}>Go to dashboard</Button>
+        </div>
+        <p className="mt-3 text-xs text-dim">You are already signed in on this device. Lost a code later? An organizer can generate a new one.</p>
       </main>
     </>
   );

@@ -51,7 +51,7 @@ const action = z.discriminatedUnion("action", [
   // Settings
   z.object({
     action: z.literal("settings.update"),
-    submissionsOpen: z.boolean().optional(), votingResultsPublic: z.boolean().optional(), showFirstGlobalWinner: z.boolean().optional(),
+    submissionsOpen: z.boolean().optional(), teamRegistrationOpen: z.boolean().optional(), votingResultsPublic: z.boolean().optional(), showFirstGlobalWinner: z.boolean().optional(),
     sponsors: z.array(z.string().max(40)).max(30).optional(), announcement: z.string().max(200).nullable().optional(), eventName: z.string().max(80).optional(),
   }),
 ]);
