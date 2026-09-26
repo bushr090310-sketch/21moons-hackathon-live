@@ -1,0 +1,7 @@
+{
+  "git": {
+    "deploymentEnabled": {
+      "claude/21moons-universe": false
+    }
+  }
+}

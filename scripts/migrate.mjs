@@ -33,6 +33,12 @@ export async function migrate(databaseUrl, { log = console.log } = {}) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const ifConfigured = process.argv.includes("--if-configured");
+  // Safety: Vercel preview/development builds share production env vars. Never let
+  // them migrate the production database. Only the production build may migrate.
+  if (process.env.VERCEL && process.env.VERCEL_ENV !== "production") {
+    console.log(`VERCEL_ENV=${process.env.VERCEL_ENV ?? "unknown"} — skipping migrations (production builds only).`);
+    process.exit(0);
+  }
   const url = resolveDatabaseUrl({ preferDirect: true });
   if (!url) {
     if (ifConfigured) {

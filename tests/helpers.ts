@@ -1,14 +1,20 @@
 import { db } from "@/lib/server/db";
 import { invalidatePublicCache } from "@/lib/server/state";
+import { invalidateUniverseCache } from "@/lib/server/universe/state";
 import { createChallenge, type ChallengeInput } from "@/lib/server/challenges";
 import { createTeam } from "@/lib/server/teams";
 
 export async function resetDb() {
   invalidatePublicCache();
+  invalidateUniverseCache();
   const sql = db();
   await sql`truncate score_ledger, votes, submission_files, challenge_submissions, participants, team_secrets, teams,
             admin_audit_log, auth_attempts, local_evidence_objects restart identity cascade`;
+  await sql`truncate chaos_events, challenge_power_rewards restart identity cascade`;
   await sql`delete from challenges where slug like 't-%' or slug like 'test-%'`;
+  await sql`insert into universe_settings (id) values (1) on conflict (id) do nothing`;
+  await sql`update universe_settings set enabled = false, auto_news = true, one_to_watch_team_id = null where id = 1`;
+  await sql`update universe_state set snapshot = null, last_ledger_id = null, last_tick_at = 'epoch' where id = 1`;
   await sql`update event_settings set leaderboard_frozen = false, frozen_at = null, revealed_at = null,
             voting_state = 'not_open', submissions_open = true, team_registration_open = true, voting_results_public = false where id = 1`;
 }
