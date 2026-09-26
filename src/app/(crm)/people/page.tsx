@@ -44,6 +44,7 @@ export default async function PeoplePage({ searchParams }: { searchParams: Promi
         subtitle={`${rows.length} of ${people.length} people`}
         actions={
           <>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download, not a page */}
             <a href="/api/crm/export/people" className="rounded-lg border border-line-strong px-3 py-2 text-sm text-mist hover:text-silver">Export CSV</a>
             <Link href="/people/new" className="rounded-lg bg-violet-deep px-3 py-2 text-sm font-medium text-white hover:brightness-110">Add person</Link>
           </>

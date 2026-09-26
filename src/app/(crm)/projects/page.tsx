@@ -43,6 +43,7 @@ export default async function ProjectsPage({ searchParams }: { searchParams: Pro
         subtitle={`${rows.length} of ${projects.length} projects`}
         actions={
           <>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download, not a page */}
             <a href="/api/crm/export/projects" className="rounded-lg border border-line-strong px-3 py-2 text-sm text-mist hover:text-silver">Export CSV</a>
             <Link href="/projects/new" className="rounded-lg bg-violet-deep px-3 py-2 text-sm font-medium text-white hover:brightness-110">Add project</Link>
           </>
