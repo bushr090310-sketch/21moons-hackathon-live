@@ -8,11 +8,13 @@ import { LivePill, OrbitBackdrop, SiteHeader, SponsorStrip } from "@/components/
 import { ActivityFeed, DropOverlay, FrozenBanner, Leaderboard, NextDrop, RevealOverlay, useDropQueue } from "@/components/board";
 import { useLiveData, useNow } from "@/components/live";
 import { Empty, Spinner } from "@/components/ui";
+import { CosmicBanner, LunarNetworkPanel, LunarTicker, UniverseBoundary, useUniverse } from "@/components/universe";
 
 export function HomeBoard({ initial }: { initial: PublicState | null }) {
   const { data, conn, serverOffset, error } = useLiveData<PublicState>("/api/public/state", { channel: "public", interval: 8000, initial });
   const now = useNow(serverOffset);
   const drops = useDropQueue(data?.challenges);
+  const { u } = useUniverse();
 
   if (!data) {
     return (
@@ -47,11 +49,17 @@ export function HomeBoard({ initial }: { initial: PublicState | null }) {
           </div>
         )}
         {data.event.frozen && <div className="mb-4"><FrozenBanner frozenAt={data.event.frozenAt} /></div>}
+        {u && (
+          <UniverseBoundary>
+            {u.cosmic && <div className="mb-4"><CosmicBanner u={u} now={now} /></div>}
+            <div className="mb-4 lg:hidden"><LunarTicker feed={u.feed} now={now} /></div>
+          </UniverseBoundary>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <section aria-label="Leaderboard">
             {data.leaderboard.length ? (
-              <Leaderboard rows={data.leaderboard} now={now} />
+              <Leaderboard rows={data.leaderboard} now={now} statuses={u?.statuses} hideScores={u?.eclipse} />
             ) : (
               <Empty icon={<Trophy className="size-6" />} title="Teams will appear here once the event starts" />
             )}
@@ -60,6 +68,7 @@ export function HomeBoard({ initial }: { initial: PublicState | null }) {
 
           <aside className="flex flex-col gap-4">
             <NextDrop at={data.nextDropAt} now={now} />
+            {u && <UniverseBoundary><LunarNetworkPanel feed={u.feed} now={now} limit={6} className="hidden lg:block" /></UniverseBoundary>}
             <div className="panel p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.25em] text-mist">Live challenges</h2>

@@ -8,6 +8,7 @@ import { LivePill, SponsorStrip, Wordmark } from "@/components/brand";
 import { ActivityFeed, DropOverlay, FrozenBanner, Leaderboard, NextDrop, RevealOverlay, useDropQueue } from "@/components/board";
 import { useLiveData, useNow } from "@/components/live";
 import { cx } from "@/components/ui";
+import { CosmicBanner, LunarNetworkPanel, TakeoverLayer, UniverseBoundary, useUniverse } from "@/components/universe";
 
 const PER_COLUMN = 13;
 
@@ -15,6 +16,7 @@ export function DisplayBoard({ initial }: { initial: PublicState | null }) {
   const { data, conn, serverOffset } = useLiveData<PublicState>("/api/public/state", { channel: "public", interval: 6000, initial });
   const now = useNow(serverOffset);
   const drops = useDropQueue(data?.challenges);
+  const { u, refresh: refreshUniverse } = useUniverse(6000);
   const [isFs, setIsFs] = useState(false);
   const [idle, setIdle] = useState(false);
   const [page, setPage] = useState(0);
@@ -80,6 +82,7 @@ export function DisplayBoard({ initial }: { initial: PublicState | null }) {
         <main className="grid min-h-0 flex-1 grid-cols-[1fr_32vw] gap-[2vw] px-[3vw] pb-[2vh]">
           <section className="flex min-h-0 flex-col">
             {data.event.frozen && <div className="mb-[1.5vh]"><FrozenBanner frozenAt={data.event.frozenAt} large /></div>}
+            {u?.cosmic && <UniverseBoundary><div className="mb-[1.5vh]"><CosmicBanner u={u} now={now} large /></div></UniverseBoundary>}
             {data.event.announcement && (
               <div className="mb-[1.5vh] flex items-center gap-3 rounded-xl border border-violet/30 bg-violet/[0.08] px-6 py-3 text-[2vh] text-silver">
                 <Megaphone className="size-[2.4vh] text-violet" /> {data.event.announcement}
@@ -89,11 +92,11 @@ export function DisplayBoard({ initial }: { initial: PublicState | null }) {
               <div className="flex flex-1 items-center justify-center text-[3vh] text-dim">Teams will appear here soon</div>
             ) : twoCols ? (
               <div className="grid min-h-0 flex-1 grid-cols-2 gap-[1.2vw]">
-                <Leaderboard rows={current.slice(0, half)} now={now} variant="display" />
-                <Leaderboard rows={current.slice(half)} now={now} variant="display" />
+                <Leaderboard rows={current.slice(0, half)} now={now} variant="display" statuses={u?.statuses} hideScores={u?.eclipse} />
+                <Leaderboard rows={current.slice(half)} now={now} variant="display" statuses={u?.statuses} hideScores={u?.eclipse} />
               </div>
             ) : (
-              <Leaderboard rows={current} now={now} variant="display" />
+              <Leaderboard rows={current} now={now} variant="display" statuses={u?.statuses} hideScores={u?.eclipse} />
             )}
             {pages > 1 && <p className="mt-2 text-center text-[1.6vh] text-dim">Page {(page % pages) + 1} / {pages}</p>}
           </section>
@@ -119,9 +122,10 @@ export function DisplayBoard({ initial }: { initial: PublicState | null }) {
                 <p className="text-[1.8vh] text-dim">Stand by for the next drop.</p>
               )}
             </div>
+            {u && <UniverseBoundary><LunarNetworkPanel feed={u.feed} now={now} large limit={4} /></UniverseBoundary>}
             <div className="panel min-h-0 flex-1 overflow-hidden p-[2.2vh]">
               <h2 className="mb-[1.6vh] text-[1.5vh] font-semibold uppercase tracking-[0.3em] text-mist">Recent activity</h2>
-              <ActivityFeed items={data.activity} variant="display" limit={9} />
+              <ActivityFeed items={data.activity} variant="display" limit={u ? 5 : 9} />
             </div>
           </aside>
         </main>
@@ -130,6 +134,7 @@ export function DisplayBoard({ initial }: { initial: PublicState | null }) {
       {data && <SponsorStrip sponsors={data.event.sponsors} large className="shrink-0 !py-[2vh]" />}
       <DropOverlay challenge={drops.current} onDone={drops.dismiss} large autoMs={14000} />
       {data && <RevealOverlay revealedAt={data.event.revealedAt} now={now} large />}
+      {u && <UniverseBoundary><TakeoverLayer u={u} now={now} refresh={refreshUniverse} /></UniverseBoundary>}
     </div>
   );
 }

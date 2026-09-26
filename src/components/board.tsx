@@ -48,7 +48,13 @@ const RANK_STYLE = [
   "bg-gradient-to-br from-[#9be7f5] to-[#3aa7bd] text-[#06141a]",
 ];
 
-export function Leaderboard({ rows, now, variant = "page", maxRows }: { rows: LeaderboardRow[]; now: number; variant?: "page" | "display"; maxRows?: number }) {
+export interface RowStatus { emoji: string; label: string; detail: string }
+
+/**
+ * `statuses` and `hideScores` are optional universe-layer additions. When omitted the
+ * leaderboard renders exactly as before.
+ */
+export function Leaderboard({ rows, now, variant = "page", maxRows, statuses, hideScores }: { rows: LeaderboardRow[]; now: number; variant?: "page" | "display"; maxRows?: number; statuses?: Record<string, RowStatus>; hideScores?: boolean }) {
   const moves = useMovement(rows);
   const list = maxRows ? rows.slice(0, maxRows) : rows;
   const display = variant === "display";
@@ -72,7 +78,8 @@ export function Leaderboard({ rows, now, variant = "page", maxRows }: { rows: Le
         <AnimatePresence initial={false}>
           {list.map((r) => {
             const m = moves[r.teamId];
-            const recent = r.lastDeltaAt && now - new Date(r.lastDeltaAt).getTime() < 15 * 60_000 && r.lastDelta != null;
+            const recent = !hideScores && r.lastDeltaAt && now - new Date(r.lastDeltaAt).getTime() < 15 * 60_000 && r.lastDelta != null;
+            const status = statuses?.[r.teamId];
             const top = r.rank <= 3 && r.score > 0;
             return (
               <motion.li
@@ -114,19 +121,25 @@ export function Leaderboard({ rows, now, variant = "page", maxRows }: { rows: Le
                       </span>
                     )}
                   </div>
-                  {(recent || (!display && r.completed > 0)) && (
+                  {(recent || status || (!display && r.completed > 0)) && (
                     <div className={cx("mt-0.5 flex items-center gap-2 truncate text-mist", display ? "text-[1.6vh]" : "text-xs")}>
                       {recent && (
                         <span className={cx("inline-flex items-center gap-1 font-medium", r.lastDelta! > 0 ? "text-cyan" : "text-bad")}>
                           {r.lastDelta! > 0 ? "+" : ""}{r.lastDelta} <span className="truncate text-mist">{r.lastLabel}</span>
                         </span>
                       )}
-                      {!display && r.completed > 0 && !recent && <span>{r.completed} challenge{r.completed === 1 ? "" : "s"} completed</span>}
+                      {status && (
+                        <span className="inline-flex min-w-0 items-center gap-1 truncate text-violet/90" title={status.detail}>
+                          {status.emoji} <span className="font-medium">{status.label}</span>
+                          <span className={cx("truncate text-mist/80", !display && "hidden sm:inline")}>· {status.detail}</span>
+                        </span>
+                      )}
+                      {!display && r.completed > 0 && !recent && !status && <span>{r.completed} challenge{r.completed === 1 ? "" : "s"} completed</span>}
                     </div>
                   )}
                 </div>
                 <AnimatePresence>
-                  {m && m.scoreDelta !== 0 && (
+                  {m && m.scoreDelta !== 0 && !hideScores && (
                     <motion.span
                       key={m.at}
                       initial={{ opacity: 0, y: 10, scale: 0.8 }}
@@ -138,7 +151,11 @@ export function Leaderboard({ rows, now, variant = "page", maxRows }: { rows: Le
                     </motion.span>
                   )}
                 </AnimatePresence>
-                <ScoreNumber value={r.score} className={cx("relative w-[3.2ch] text-right font-semibold tabular text-silver", scoreCls)} />
+                {hideScores ? (
+                  <span className={cx("relative w-[3.2ch] text-right font-semibold tabular text-dim", scoreCls)} title="Eclipse: scores hidden">🌘</span>
+                ) : (
+                  <ScoreNumber value={r.score} className={cx("relative w-[3.2ch] text-right font-semibold tabular text-silver", scoreCls)} />
+                )}
               </motion.li>
             );
           })}

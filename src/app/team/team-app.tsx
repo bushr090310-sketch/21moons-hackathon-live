@@ -11,6 +11,7 @@ import { useLiveData, useNow } from "@/components/live";
 import { useToast } from "@/components/toast";
 import { Badge, Button, Empty, Input, Label, Select, Spinner, Textarea, api, cx } from "@/components/ui";
 import { ApplyModal } from "./apply-modal";
+import { TeamUniverseSection } from "./universe-team";
 
 type Challenge = TeamState["challenges"][number];
 
@@ -264,6 +265,7 @@ function Dashboard({ state: s, conn, offset, refresh }: { state: TeamState; conn
         {s.event.frozen && <div className="mt-4"><FrozenBanner frozenAt={s.event.frozenAt} /></div>}
         {!s.event.submissionsOpen && <p className="mt-4 rounded-xl border border-warn/30 bg-warn/10 px-4 py-3 text-sm text-warn">Submissions are paused by the organizers right now.</p>}
 
+        <div className="mt-4 flex flex-col gap-3 empty:hidden"><TeamUniverseSection /></div>
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_340px]">
           <section>
             <div className="mb-4 flex items-center gap-1 rounded-lg border border-line bg-white/[0.02] p-1 text-sm">

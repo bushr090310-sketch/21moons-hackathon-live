@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, BellOff, Flag, Gauge, Inbox, LogOut, Settings, Trophy, Users, Vote } from "lucide-react";
+import { Bell, BellOff, Flag, Gauge, Inbox, LogOut, Orbit, Settings, Trophy, Users, Vote } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AdminState } from "@/lib/server/state";
 import { fmtTimeSec } from "@/lib/shared/time";
@@ -15,8 +15,9 @@ import { TeamsTab } from "./tabs/teams";
 import { ScoresTab } from "./tabs/scores";
 import { VotingTab } from "./tabs/voting";
 import { SettingsTab } from "./tabs/settings";
+import { UniverseTab } from "./tabs/universe";
 
-export type Tab = "overview" | "inbox" | "challenges" | "teams" | "scores" | "voting" | "settings";
+export type Tab = "overview" | "inbox" | "challenges" | "teams" | "scores" | "voting" | "universe" | "settings";
 
 export interface AdminCtx {
   s: AdminState;
@@ -34,6 +35,7 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
   { id: "teams", label: "Teams", icon: Users },
   { id: "scores", label: "Scores", icon: Trophy },
   { id: "voting", label: "Voting", icon: Vote },
+  { id: "universe", label: "Universe", icon: Orbit },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -210,6 +212,7 @@ function Command({ live }: { live: LiveData<AdminState> & { data: AdminState } }
         {tab === "scores" && <ScoresTab {...ctx} />}
         {tab === "voting" && <VotingTab {...ctx} />}
         {tab === "settings" && <SettingsTab {...ctx} />}
+        {tab === "universe" && <UniverseTab {...ctx} />}
       </main>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-void/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl sm:hidden">
