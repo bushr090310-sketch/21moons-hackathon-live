@@ -48,6 +48,9 @@ export const config = {
     "/hackathons/:path*",
     "/dashboard/:path*",
     "/import/:path*",
+    "/tags/:path*",
+    "/crm",
     "/api/account/:path*",
+    "/api/crm/:path*",
   ],
 };

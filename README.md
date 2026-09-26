@@ -7,6 +7,10 @@ People's Choice voting, and final awards.
 
 **Organizers: read [RUNBOOK.md](./RUNBOOK.md).**
 
+It also hosts the **21Moons CRM**, the internal people + projects + hackathons database (Supabase Auth + RLS),
+at `/login` → `/crm`. Participants use `/me` and `/me/projects`. Staff and admins use `/dashboard`, `/people`, `/projects`,
+`/hackathons`, `/import` and `/tags`. Architecture and rules are in [CLAUDE.md](./CLAUDE.md), and setup is in [CRM setup](#crm-setup).
+
 ## Stack
 
 - Next.js 16 (App Router), TypeScript and Tailwind 4. Animation uses framer-motion; icons come from lucide-react.
@@ -63,3 +67,20 @@ npm run lint && npm run typecheck && npm test && npm run build:app
 `npm test` spins up a real local Postgres and covers ledger and scoring rules, FIRST fairness and races,
 caps, expiry and locking, voting rules, authorization, secret-challenge leakage, evidence privacy,
 the RLS lockdown, and freeze/reveal.
+
+## CRM setup
+
+These one-time steps need dashboard access:
+
+1. **Apply the migration.** Deploying to production applies `supabase/migrations/20260926120000_initial_crm_schema.sql`
+   automatically. Alternatively, run `DATABASE_URL=<direct url> npm run db:migrate`. Don't also paste it into the SQL editor.
+2. **Seed.** In the Supabase SQL editor, run step 1 of `supabase/seed.sql` to create the current hackathon.
+3. **Auth → URL configuration.** Set Site URL to the production URL. Add `https://<prod-domain>/auth/callback` and
+   `https://*-<team>.vercel.app/auth/callback` to Redirect URLs.
+4. **Auth → SMTP.** Configure custom SMTP (Resend, Postmark, SES…). Supabase's built-in mailer only sends a few
+   emails per hour. Keep **Confirm email** enabled, because profiles are linked only to confirmed emails.
+5. **Admins.** Yusuf and Liam sign up at `/login` and confirm their email. Then run step 2 of `supabase/seed.sql` with their emails.
+   For staff: `insert into user_roles (user_id, role) select id, 'staff' from auth.users where lower(email) = '…';`
+6. **Optional OAuth.** Create a GitHub OAuth app and/or a LinkedIn app with "Sign In with LinkedIn using OpenID Connect".
+   Both use the callback `https://<project-ref>.supabase.co/auth/v1/callback`. Enable them in Supabase Auth → Providers,
+   then set `AUTH_PROVIDERS=github,linkedin_oidc` in Vercel.
