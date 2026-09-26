@@ -20,6 +20,7 @@
     "demo:remove": "node scripts/demo.mjs remove"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "framer-motion": "^13.4.4",
     "geist": "^1.7.2",
